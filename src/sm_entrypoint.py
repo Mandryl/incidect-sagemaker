@@ -378,7 +378,7 @@ def input_fn(request_body, content_type=JSON_CONTENT_TYPE):
         except:
             input_data = Image.new('RGB', (300, 300), 'white')
             input_data = inference_loader(input_data)
-
+        input_data = torch.unsqueeze(input_data, 0)
     else:
         logger.error(f'Content-Type invalid: {content_type}')
         input_data = {'errors': [f'Content-Type invalid: {content_type}']}
