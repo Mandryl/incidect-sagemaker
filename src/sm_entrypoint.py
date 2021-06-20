@@ -3,6 +3,7 @@ import logging
 import os
 from io import BytesIO
 
+import boto3
 import configargparse
 import torch
 import torch.nn as nn
@@ -14,6 +15,8 @@ from torchvision.transforms import transforms
 CONFIG_FILENAME = 'configs/eccv_final_model'
 CHECKPOINT_PATH_FOLDER = 'pretrained_weights'
 JSON_CONTENT_TYPE = 'application/json'
+JPEG_CONTENT_TYPE = 'image/jpeg'
+PNG_CONTENT_TYPE = 'image/png'
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -359,14 +362,23 @@ def model_fn(model_dir):
 def input_fn(request_body, content_type=JSON_CONTENT_TYPE):
     """Convert request body into input of models"""
     logger.info("START input_fn")
-    if content_type == 'image/jpeg' or content_type == 'image/png':
-        f = BytesIO(request_body)
+    if content_type == JPEG_CONTENT_TYPE or content_type == PNG_CONTENT_TYPE or content_type == JSON_CONTENT_TYPE:
+        if content_type == JPEG_CONTENT_TYPE or content_type == PNG_CONTENT_TYPE:
+            f = BytesIO(request_body)
+        else:
+            # Get image from S3
+            s3 = boto3.resource("s3")
+            bucket = s3.Bucket(request_body["s3_bucket_name"])
+            obj = bucket.Object(request_body["s3_object_name"])
+            response = obj.get()
+            f = BytesIO(response["Body"].read())
         try:
             input_data = Image.open(f).convert('RGB')
             input_data = inference_loader(input_data)
         except:
             input_data = Image.new('RGB', (300, 300), 'white')
             input_data = inference_loader(input_data)
+
     else:
         logger.error(f'Content-Type invalid: {content_type}')
         input_data = {'errors': [f'Content-Type invalid: {content_type}']}
